@@ -6,6 +6,7 @@ __email__ = '853934146@qq.com'
 
 import random
 import bisect
+import scipy.stats
 import math
 import copy
 import numpy as np
@@ -1104,6 +1105,93 @@ class MakeSuite():
         return suite
 
 
+class Pdf(object):
+    """Represents a probability density function (PDF)."""
+
+    def density(self, x):
+        """Evaluates this Pdf at x.
+                Returns: float probability density
+                """
+        raise UnimplementedMethodException()
+
+    def make_pmf(self, xs, name=''):
+        """Makes a discrete version of this Pdf, evaluated at xs.
+               xs: equally-spaced sequence of values
+               Returns: new Pmf
+        """
+        pmf = Pmf(name=name)
+        for x in xs:
+            pmf.set(x, self.density(x))
+        pmf.normalize()
+        return pmf
+
+
+class GaussianPdf(Pdf):
+    """Represents the PDF of a Gaussian distribution."""
+
+    def __init__(self, mu, sigma):
+        """Constructs a Gaussian Pdf with given mu and sigma.
+        mu: mean
+        sigma: standard deviation
+        """
+        self.mu = mu
+        self.sigma = sigma
+
+    def density(self, x):
+        """Evaluates this Pdf at x.
+        Returns: float probability density
+        """
+        return eval_gaussian_pdf(x, self.mu, self.sigma)
+
+
+class EstimatedPdf(Pdf):
+    """Represents a PDF estimated by KDE."""
+
+    def __init__(self, sample):
+        """Estimates the density function based on a sample.
+        sample: sequence of data
+        """
+        self.kde = scipy.stats.gaussian_kde(sample)
+
+    def density(self, x):
+        """Evaluates this Pdf at x.
+        Returns: float probability density
+        """
+        return self.kde.evaluate(x)
+
+    def make_pmf(self, xs, name=''):
+        ps = self.kde.evaluate(xs)
+        pmf = MakeDistribution('pmf').from_items(zip(xs, ps), name=name)
+        return pmf
+
+
+def percentile(pmf, percentage):
+    """Computes a percentile of a given Pmf.
+    percentage: float 0-100
+    """
+    p = percentage / 100.0
+    total = 0
+    for val, prob in pmf.Items():
+        total += prob
+        if total >= p:
+            return val
+
+
+def gredible_interval(pmf, percentage=90):
+    """Computes a credible interval for a given distribution.
+    If percentage=90, computes the 90% CI.
+    Args:
+        pmf: Pmf object representing a posterior distribution
+        percentage: float between 0 and 100
+    Returns:
+        sequence of two floats, low and high
+    """
+    cdf = pmf.make_cdf()
+    prob = (1 - percentage / 100.0) / 2
+    interval = cdf.value(prob), cdf.value(1 - prob)
+    return interval
+
+
 def pmf_prob_less(pmf1, pmf2):
     """Probability that a value from pmf1 is less than a value from pmf2.
     Args:
@@ -1152,6 +1240,15 @@ def pmf_prob_equal(pmf1, pmf2):
     return total
 
 
+def eval_gaussian_pdf(x, mu, sigma):
+    """Computes the unnormalized PDF of the normal distribution.
+    x: value
+    mu: mean
+    sigma: standard deviation
+
+    returns: float probability density
+    """
+    return scipy.stats.norm.pdf(x, mu, sigma)
 
 
 if __name__ == '__main__':
