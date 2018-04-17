@@ -225,7 +225,7 @@ class _DictProbWrapper(dict):
     def incr(self, x, term=1):
         """Increments the freq/prob associated with the value x.
         Args:
-            x: number value
+            x: random variable
             term: how much to increment by
         """
         self[x] = self.get(x, 0) + term
@@ -247,6 +247,9 @@ class _DictProbWrapper(dict):
         """
         pass
 
+    def __hash__(self):
+        return hash(self.name)
+
 
 class Hist(_DictProbWrapper):
     """Represents a histogram, which is a map from values to frequencies.
@@ -256,7 +259,7 @@ class Hist(_DictProbWrapper):
     def freq(self, x):
         """Gets the frequency associated with the value x.
         Args:
-            x: number value
+            x: random variable
         Returns:
             int frequency
         """
@@ -290,7 +293,7 @@ class Pmf(_DictProbWrapper):
     def prob(self, x, default=0):
         """Gets the probability associated with the value x.
         Args:
-            x: number value
+            x: random variable
             default: value to return if the key is not there
         Returns:
             float probability
@@ -700,6 +703,8 @@ class MakeDistribution(object):
             return MakePmf()
         elif distribution == 'hist':
             return MakeHist()
+        elif distribution == 'suite':
+            return MakeSuite()
 
 
 class MakePmf(object):
@@ -1039,6 +1044,66 @@ class Suite(Pmf):
         for hypo, odds in self.items():
             self.set(hypo, probability(odds))
 
+class MakeSuite():
+    """make a suite"""
+
+    def from_list(self, l, name=''):
+        """Makes a suite from an unsorted sequence of values.
+            Args:
+                t: sequence of numbers
+                name: string name for this suite
+            Returns:
+                Suite object
+            """
+        hist = MakeDistribution('hist').from_list(l)
+        return self.from_dict(hist)
+
+    def from_hist(self, hist, name=None):
+        """Makes a normalized suite from a Hist object.
+            Args:
+                hist: Hist object
+                name: string name
+            Returns:
+                Suite object
+            """
+        if name is None:
+            name = hist.name
+
+        return self.from_dict(hist, name)
+
+    def from_dict(self, d, name=''):
+        """Makes a suite from a map from values to probabilities.
+         Args:
+             d: dictionary that maps values to probabilities
+             name: string name for this suite
+         Returns:
+             Suite object
+         """
+        suite = Suite(d, name=name)
+        suite.normalize()
+        return suite
+
+    def from_cdf(self, cdf, name=None):
+        """Makes a normalized Suite from a Cdf object.
+          Args:
+              cdf: Cdf object
+              name: string name for the new Suite
+          Returns:
+              Suite object
+          """
+        if name is None:
+            name = cdf.name
+
+        suite = Suite(name=name)
+
+        prev = 0.0
+        for val, prob in cdf.Items():
+            suite.incr(val, prob - prev)
+            prev = prob
+
+        return suite
+
+
 def pmf_prob_less(pmf1, pmf2):
     """Probability that a value from pmf1 is less than a value from pmf2.
     Args:
@@ -1085,6 +1150,9 @@ def pmf_prob_equal(pmf1, pmf2):
             if v1 == v2:
                 total += p1 * p2
     return total
+
+
+
 
 if __name__ == '__main__':
     # test code
